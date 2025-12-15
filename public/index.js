@@ -1,5 +1,5 @@
-// Initialize the game when the page loads
-window.addEventListener('DOMContentLoaded', async () => {
+// Initialize the game when assets are loaded
+window.addEventListener('assetsLoaded', async () => {
   const canvas = document.getElementById('gameCanvas');
   const game = new Game(canvas);
   

@@ -3,11 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
   <title>Paint Wars</title>
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
+  <!-- Loading Screen -->
+  <div id="loadingScreen" class="loading-screen">
+    <div class="loading-content">
+      <img src="assets/paint-logo.png" alt="Paint Wars" class="loading-logo" id="loadingLogo">
+      <div class="loading-bar-container">
+        <div class="loading-bar" id="loadingBar"></div>
+      </div>
+    </div>
+  </div>
+  
   <!-- Token Stats Section -->
   <div id="tokenStatsUI" class="token-stats-ui">
     <div class="token-stats-container">
@@ -247,6 +257,7 @@
   
   <canvas id="gameCanvas"></canvas>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="preloader.js"></script>
   <script src="game/canvas.js"></script>
   <script src="game/camera.js"></script>
   <script src="game/star-background.js"></script>
