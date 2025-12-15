@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header .user-info {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .login-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+        }
+
+        .reset-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .reset-buttons .btn {
+            flex: 1;
+        }
+
+        .config-form {
+            display: none;
+        }
+
+        .config-form.active {
+            display: block;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .header {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Admin Panel</h1>
+            <div class="user-info" id="userInfo" style="display: none;">
+                Logged in as: <span id="username"></span>
+            </div>
+            <button class="logout-btn" id="logoutBtn" style="display: none;">Logout</button>
+        </div>
+
+        <div class="content">
+            <div class="alert" id="alert"></div>
+
+            <!-- Login Form -->
+            <div class="login-form" id="loginForm">
+                <h2 style="text-align: center; margin-bottom: 30px; color: #333;">Login</h2>
+                <div class="form-group">
+                    <label for="loginUsername">Username</label>
+                    <input type="text" id="loginUsername" placeholder="Enter username" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter password" required>
+                </div>
+                <button class="btn btn-primary" onclick="handleLogin()">Login</button>
+            </div>
+
+            <!-- Config Form -->
+            <div class="config-form" id="configForm">
+                <form id="adminConfigForm" onsubmit="handleSave(event)">
+                    <!-- Admin Credentials Section -->
+                    <div class="section">
+                        <h2 class="section-title">Admin Credentials</h2>
+                        <div class="form-group">
+                            <label for="adminUsername">Admin Username</label>
+                            <input type="text" id="adminUsername" name="adminUsername" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="adminPassword">Admin Password (leave blank to keep current)</label>
+                            <input type="password" id="adminPassword" name="adminPassword" placeholder="Enter new password">
+                        </div>
+                    </div>
+
+                    <!-- Wallet Configuration Section -->
+                    <div class="section">
+                        <h2 class="section-title">Wallet Configuration</h2>
+                        <div class="form-group">
+                            <label for="devWalletPublic">Dev Wallet Public Key</label>
+                            <input type="text" id="devWalletPublic" name="devWalletPublic">
+                        </div>
+                        <div class="form-group">
+                            <label for="devWalletPrivate">Dev Wallet Private Key (encrypted)</label>
+                            <input type="password" id="devWalletPrivate" name="devWalletPrivate" placeholder="Enter private key to update">
+                        </div>
+                        <div class="form-group">
+                            <label for="potWalletPublic">Pot Wallet Public Key</label>
+                            <input type="text" id="potWalletPublic" name="potWalletPublic">
+                        </div>
+                        <div class="form-group">
+                            <label for="potWalletPrivate">Pot Wallet Private Key (encrypted)</label>
+                            <input type="password" id="potWalletPrivate" name="potWalletPrivate" placeholder="Enter private key to update">
+                        </div>
+                    </div>
+
+                    <!-- Token Configuration Section -->
+                    <div class="section">
+                        <h2 class="section-title">Token Configuration</h2>
+                        <div class="form-group">
+                            <label for="tokenContractAddress">Token Contract Address</label>
+                            <input type="text" id="tokenContractAddress" name="tokenContractAddress">
+                        </div>
+                        <div class="form-group">
+                            <label for="tokenTicker">Token Ticker</label>
+                            <input type="text" id="tokenTicker" name="tokenTicker">
+                        </div>
+                    </div>
+
+                    <!-- Game Control Section -->
+                    <div class="section">
+                        <h2 class="section-title">Game Control</h2>
+                        <div class="form-group">
+                            <label>Game Status</label>
+                            <button type="button" id="pauseToggleBtn" class="btn" style="margin-top: 10px; background: #6c757d; color: white;">
+                                <span id="pauseToggleText">Loading...</span>
+                            </button>
+                            <p style="margin-top: 8px; font-size: 12px; color: #666;">
+                                Click to pause/unpause the game immediately. No need to save config.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Social Links Section -->
+                    <div class="section">
+                        <h2 class="section-title">Social Links</h2>
+                        <div class="form-group">
+                            <label for="xLink">X (Twitter) Link</label>
+                            <input type="text" id="xLink" name="xLink" placeholder="https://twitter.com/...">
+                        </div>
+                        <div class="form-group">
+                            <label for="pumpfunLink">Pumpfun Link</label>
+                            <input type="text" id="pumpfunLink" name="pumpfunLink" placeholder="https://pump.fun/...">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                </form>
+
+                <!-- Reset Data Section -->
+                <div class="section" style="margin-top: 40px; border-top: 3px solid #dc3545; padding-top: 30px;">
+                    <h2 class="section-title" style="color: #dc3545;">Reset Data</h2>
+                    <p style="margin-bottom: 20px; color: #666; font-size: 14px;">
+                        Use these buttons to completely reset statistics when changing tokens. This will permanently delete all data.
+                    </p>
+                    <div class="reset-buttons">
+                        <button type="button" class="btn btn-danger" onclick="handleResetTokenStats()">
+                            Reset Token Stats
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="handleResetPlayerStats()">
+                            Reset Player Stats
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check authentication on page load
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/admin/check-auth');
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    showConfigForm(data.username);
+                    loadConfig();
+                } else {
+                    showLoginForm();
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                showLoginForm();
+            }
+        }
+
+        function showLoginForm() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('configForm').classList.remove('active');
+            document.getElementById('userInfo').style.display = 'none';
+            document.getElementById('logoutBtn').style.display = 'none';
+        }
+
+        function showConfigForm(username) {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('configForm').classList.add('active');
+            document.getElementById('userInfo').style.display = 'block';
+            document.getElementById('username').textContent = username;
+            document.getElementById('logoutBtn').style.display = 'block';
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showAlert('Please enter both username and password', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('Login successful!', 'success');
+                    setTimeout(() => {
+                        showConfigForm(username);
+                        loadConfig();
+                    }, 500);
+                } else {
+                    showAlert(data.error || 'Login failed', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showAlert('An error occurred during login', 'error');
+            }
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/admin/config');
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Populate form fields
+                    document.getElementById('adminUsername').value = data.adminUsername || '';
+                    document.getElementById('devWalletPublic').value = data.devWalletPublic || '';
+                    document.getElementById('devWalletPrivate').value = ''; // Don't show decrypted private key
+                    document.getElementById('potWalletPublic').value = data.potWalletPublic || '';
+                    document.getElementById('potWalletPrivate').value = ''; // Don't show decrypted private key
+                    document.getElementById('tokenContractAddress').value = data.tokenContractAddress || '';
+                    document.getElementById('tokenTicker').value = data.tokenTicker || '';
+                    // Update pause toggle button
+                    updatePauseToggleButton(data.gamePaused || false);
+                    document.getElementById('xLink').value = data.xLink || '';
+                    document.getElementById('pumpfunLink').value = data.pumpfunLink || '';
+                } else {
+                    showAlert(data.error || 'Failed to load config', 'error');
+                }
+            } catch (error) {
+                console.error('Load config error:', error);
+                showAlert('An error occurred while loading config', 'error');
+            }
+        }
+
+        async function handleSave(event) {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+            const data = {};
+
+            // Collect all form data (exclude gamePaused - it's handled by toggle button)
+            for (const [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+
+            try {
+                const response = await fetch('/api/admin/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert('Configuration saved successfully!', 'success');
+                    // Clear password fields after save
+                    document.getElementById('adminPassword').value = '';
+                    document.getElementById('devWalletPrivate').value = '';
+                    document.getElementById('potWalletPrivate').value = '';
+                } else {
+                    showAlert(result.error || 'Failed to save config', 'error');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                showAlert('An error occurred while saving', 'error');
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                const response = await fetch('/api/admin/logout', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('Logged out successfully', 'success');
+                    setTimeout(() => {
+                        showLoginForm();
+                        document.getElementById('loginUsername').value = '';
+                        document.getElementById('loginPassword').value = '';
+                    }, 500);
+                } else {
+                    showAlert(data.error || 'Logout failed', 'error');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                showAlert('An error occurred during logout', 'error');
+            }
+        }
+
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert alert-${type} show`;
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+
+        function updatePauseToggleButton(isPaused) {
+            const btn = document.getElementById('pauseToggleBtn');
+            const text = document.getElementById('pauseToggleText');
+            if (btn && text) {
+                if (isPaused) {
+                    btn.style.background = '#dc3545';
+                    text.textContent = '⏸️ Game Paused - Click to Unpause';
+                } else {
+                    btn.style.background = '#28a745';
+                    text.textContent = '▶️ Game Running - Click to Pause';
+                }
+            }
+        }
+
+        async function handleTogglePause() {
+            const btn = document.getElementById('pauseToggleBtn');
+            if (btn) {
+                btn.disabled = true;
+            }
+
+            try {
+                const response = await fetch('/api/admin/toggle-pause', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    updatePauseToggleButton(result.gamePaused);
+                    showAlert(result.message || (result.gamePaused ? 'Game paused' : 'Game unpaused'), 'success');
+                } else {
+                    showAlert(result.error || 'Failed to toggle pause state', 'error');
+                }
+            } catch (error) {
+                console.error('Toggle pause error:', error);
+                showAlert('An error occurred while toggling pause state', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // Set up pause toggle button handler (run after DOM is ready)
+        function setupPauseToggle() {
+            const pauseToggleBtn = document.getElementById('pauseToggleBtn');
+            if (pauseToggleBtn) {
+                pauseToggleBtn.addEventListener('click', handleTogglePause);
+            }
+        }
+
+        async function handleResetTokenStats() {
+            if (!confirm('Are you sure you want to reset all token stats? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/reset-token-stats', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert('Token stats reset successfully!', 'success');
+                } else {
+                    showAlert(result.error || 'Failed to reset token stats', 'error');
+                }
+            } catch (error) {
+                console.error('Reset token stats error:', error);
+                showAlert('An error occurred while resetting token stats', 'error');
+            }
+        }
+
+        async function handleResetPlayerStats() {
+            if (!confirm('Are you sure you want to reset all player stats? This will delete all player records and cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/reset-player-stats', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert(result.message || 'Player stats reset successfully!', 'success');
+                } else {
+                    showAlert(result.error || 'Failed to reset player stats', 'error');
+                }
+            } catch (error) {
+                console.error('Reset player stats error:', error);
+                showAlert('An error occurred while resetting player stats', 'error');
+            }
+        }
+
+        // Event listeners
+        document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+        document.getElementById('loginPassword').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleLogin();
+            }
+        });
+
+        // Initialize on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setupPauseToggle();
+                checkAuth();
+            });
+        } else {
+            setupPauseToggle();
+            checkAuth();
+        }
+    </script>
+</body>
+</html>
