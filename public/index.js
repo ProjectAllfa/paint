@@ -25,7 +25,7 @@ window.addEventListener('assetsLoaded', async () => {
   await game.init('map1'); // Load map1.json from assets/maps/
   
   // Connect to multiplayer server
-  game.connectToServer();
+  game.connectToServer('https://paintwars.fun');
   
   // Load and display token stats
   loadTokenStats();
