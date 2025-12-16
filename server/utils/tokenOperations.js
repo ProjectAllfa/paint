@@ -79,14 +79,113 @@ if (typeof getAssociatedTokenAddress !== 'function') {
     getAssociatedTokenAddress = fallbackGetAssociatedTokenAddress;
 }
 
-// Import functions and constants from spl-token with validation
-const { 
-    createAssociatedTokenAccountInstruction, 
-    createAssociatedTokenAccountIdempotentInstruction, 
-    createBurnInstruction, 
-    createTransferInstruction, 
-    getMint 
-} = splToken;
+// Import functions and constants from spl-token with validation and fallbacks
+let createAssociatedTokenAccountInstruction, createAssociatedTokenAccountIdempotentInstruction, createBurnInstruction, createTransferInstruction, getMint;
+
+// Get functions - check if they exist first
+createAssociatedTokenAccountInstruction = splToken.createAssociatedTokenAccountInstruction;
+createAssociatedTokenAccountIdempotentInstruction = splToken.createAssociatedTokenAccountIdempotentInstruction;
+createBurnInstruction = splToken.createBurnInstruction;
+createTransferInstruction = splToken.createTransferInstruction;
+getMint = splToken.getMint;
+
+// Validate and create fallbacks for missing functions
+if (!createBurnInstruction || typeof createBurnInstruction !== 'function') {
+    console.warn('[TokenOps] ⚠️  createBurnInstruction not available, creating fallback');
+    // Fallback: manually create burn instruction
+    createBurnInstruction = (tokenAccount, mint, authority, amount, multiSigners = [], programId = TOKEN_PROGRAM_ID) => {
+        const { TransactionInstruction } = require('@solana/web3.js');
+        // Burn instruction layout for SPL Token
+        // Instruction discriminator: 8 (burn)
+        const data = Buffer.alloc(9);
+        data.writeUInt8(8, 0); // Burn instruction
+        // Write amount as u64 (little-endian)
+        const amountBuffer = Buffer.allocUnsafe(8);
+        amountBuffer.writeBigUInt64LE(BigInt(amount), 0);
+        amountBuffer.copy(data, 1);
+        
+        const keys = [
+            { pubkey: tokenAccount, isSigner: false, isWritable: true },
+            { pubkey: mint, isSigner: false, isWritable: true },
+            { pubkey: authority, isSigner: multiSigners.length === 0, isWritable: false },
+            ...multiSigners.map(signer => ({ pubkey: signer, isSigner: true, isWritable: false }))
+        ];
+        
+        return new TransactionInstruction({
+            keys,
+            programId,
+            data
+        });
+    };
+}
+
+if (!getMint || typeof getMint !== 'function') {
+    console.warn('[TokenOps] ⚠️  getMint not available, creating RPC fallback');
+    // Fallback: use RPC to get mint info
+    getMint = async (connection, mintAddress, commitment = 'confirmed', programId = TOKEN_PROGRAM_ID) => {
+        try {
+            const accountInfo = await connection.getParsedAccountInfo(mintAddress, commitment);
+            if (!accountInfo.value) {
+                throw new Error('Mint account not found');
+            }
+            
+            const parsed = accountInfo.value.data;
+            if (parsed.program !== 'spl-token' && parsed.program !== 'spl-token-2022') {
+                throw new Error('Account is not a mint account');
+            }
+            
+            const mintData = parsed.parsed.info;
+            return {
+                address: mintAddress,
+                mintAuthority: mintData.mintAuthority ? new PublicKey(mintData.mintAuthority) : null,
+                supply: BigInt(mintData.supply),
+                decimals: mintData.decimals,
+                isInitialized: true,
+                freezeAuthority: mintData.freezeAuthority ? new PublicKey(mintData.freezeAuthority) : null,
+                programId: programId
+            };
+        } catch (error) {
+            throw new Error(`Failed to get mint info via RPC: ${error.message}`);
+        }
+    };
+}
+
+if (!createTransferInstruction || typeof createTransferInstruction !== 'function') {
+    console.warn('[TokenOps] ⚠️  createTransferInstruction not available, creating fallback');
+    // Fallback: manually create transfer instruction
+    createTransferInstruction = (source, destination, authority, amount, multiSigners = [], programId = TOKEN_PROGRAM_ID) => {
+        const { TransactionInstruction } = require('@solana/web3.js');
+        // Transfer instruction layout for SPL Token
+        // Instruction discriminator: 3 (transfer)
+        const data = Buffer.alloc(9);
+        data.writeUInt8(3, 0); // Transfer instruction
+        // Write amount as u64 (little-endian)
+        const amountBuffer = Buffer.allocUnsafe(8);
+        amountBuffer.writeBigUInt64LE(BigInt(amount), 0);
+        amountBuffer.copy(data, 1);
+        
+        const keys = [
+            { pubkey: source, isSigner: false, isWritable: true },
+            { pubkey: destination, isSigner: false, isWritable: true },
+            { pubkey: authority, isSigner: multiSigners.length === 0, isWritable: false },
+            ...multiSigners.map(signer => ({ pubkey: signer, isSigner: true, isWritable: false }))
+        ];
+        
+        return new TransactionInstruction({
+            keys,
+            programId,
+            data
+        });
+    };
+}
+
+if (typeof createAssociatedTokenAccountInstruction !== 'function') {
+    console.warn('[TokenOps] ⚠️  createAssociatedTokenAccountInstruction not available');
+}
+
+if (typeof createAssociatedTokenAccountIdempotentInstruction !== 'function') {
+    console.warn('[TokenOps] ⚠️  createAssociatedTokenAccountIdempotentInstruction not available');
+}
 
 // Get getAccount with validation and RPC fallback
 let getAccount;
