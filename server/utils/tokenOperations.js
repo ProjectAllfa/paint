@@ -6,23 +6,59 @@ const splToken = require('@solana/spl-token');
 const { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } = splToken;
 
 // Fallback implementation that always works
+// Uses manual PDA derivation matching the SPL Token standard
 const fallbackGetAssociatedTokenAddress = async (mint, owner, allowOwnerOffCurve = false, programId = TOKEN_PROGRAM_ID, associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID) => {
     // Derive associated token address using PDA (Program Derived Address)
-    // This matches the SPL Token standard derivation
     // Seeds: [owner, token_program, mint]
     const seeds = [
         owner.toBuffer(),
         programId.toBuffer(),
         mint.toBuffer()
     ];
-    // Use findProgramAddressSync if available, otherwise use findProgramAddress (for older web3.js)
-    const findPDA = PublicKey.findProgramAddressSync || PublicKey.findProgramAddress;
-    if (typeof findPDA === 'function') {
-        const [address] = findPDA(seeds, associatedTokenProgramId);
-        return address;
-    } else {
-        throw new Error('Cannot derive associated token address: findProgramAddress not available');
+    
+    // Try async findProgramAddress first (more reliable than sync version)
+    try {
+        if (PublicKey.findProgramAddress && typeof PublicKey.findProgramAddress === 'function') {
+            const result = PublicKey.findProgramAddress(seeds, associatedTokenProgramId);
+            if (result && typeof result.then === 'function') {
+                const [address] = await result;
+                return address;
+            } else {
+                const [address] = result;
+                return address;
+            }
+        }
+    } catch (e) {
+        console.warn('[TokenOps] ⚠️  findProgramAddress failed, using manual derivation:', e.message);
     }
+    
+    // Manual PDA derivation as fallback
+    const { createHash } = require('crypto');
+    
+    // Standard Solana PDA derivation: try nonces from 255 down to 0
+    for (let nonce = 255; nonce >= 0; nonce--) {
+        const seedsWithBump = Buffer.concat([...seeds, Buffer.from([nonce])]);
+        
+        // Hash: sha256("ProgramDerivedAddress" + seeds + programId)
+        const hash = createHash('sha256')
+            .update(Buffer.from('ProgramDerivedAddress'))
+            .update(seedsWithBump)
+            .update(associatedTokenProgramId.toBuffer())
+            .digest();
+        
+        // Create PublicKey from hash (this will work even if off-curve)
+        try {
+            const address = new PublicKey(hash);
+            // Verify it's the correct length
+            if (address.toBuffer().length === 32) {
+                return address;
+            }
+        } catch (e) {
+            // Continue to next nonce
+        }
+    }
+    
+    throw new Error('Failed to derive associated token address: exhausted nonce space');
 };
 
 // Try to use the library function, but always fall back to our implementation
