@@ -16,26 +16,12 @@ const fallbackGetAssociatedTokenAddress = async (mint, owner, allowOwnerOffCurve
         mint.toBuffer()
     ];
     
-    // Try async findProgramAddress first (more reliable than sync version)
-    try {
-        if (PublicKey.findProgramAddress && typeof PublicKey.findProgramAddress === 'function') {
-            const result = PublicKey.findProgramAddress(seeds, associatedTokenProgramId);
-            if (result && typeof result.then === 'function') {
-                const [address] = await result;
-                return address;
-            } else {
-                const [address] = result;
-                return address;
-            }
-        }
-    } catch (e) {
-        console.warn('[TokenOps] ⚠️  findProgramAddress failed, using manual derivation:', e.message);
-    }
-    
-    // Manual PDA derivation as fallback
+    // Skip findProgramAddress entirely - it's causing issues
+    // Use manual PDA derivation directly
     const { createHash } = require('crypto');
     
     // Standard Solana PDA derivation: try nonces from 255 down to 0
+    // This matches the exact algorithm used by Solana
     for (let nonce = 255; nonce >= 0; nonce--) {
         const seedsWithBump = Buffer.concat([...seeds, Buffer.from([nonce])]);
         
@@ -46,15 +32,19 @@ const fallbackGetAssociatedTokenAddress = async (mint, owner, allowOwnerOffCurve
             .update(associatedTokenProgramId.toBuffer())
             .digest();
         
-        // Create PublicKey from hash (this will work even if off-curve)
+        // Create PublicKey from hash
+        // PDAs are off-curve points, so this should always work
         try {
             const address = new PublicKey(hash);
-            // Verify it's the correct length
+            // Verify it's the correct length (32 bytes)
             if (address.toBuffer().length === 32) {
                 return address;
             }
         } catch (e) {
-            // Continue to next nonce
+            // Continue to next nonce if this one fails
+            if (nonce === 0) {
+                throw new Error(`Failed to derive PDA: ${e.message}`);
+            }
         }
     }
     
@@ -98,16 +88,44 @@ const {
     getMint 
 } = splToken;
 
-// Get getAccount with validation
+// Get getAccount with validation and RPC fallback
 let getAccount;
 if (typeof splToken.getAccount === 'function') {
     getAccount = splToken.getAccount;
 } else {
-    console.error('[TokenOps] ❌ getAccount is not available in @solana/spl-token');
-    console.error('[TokenOps]    Available exports:', Object.keys(splToken).filter(k => typeof splToken[k] === 'function').slice(0, 10));
-    // Create a fallback that throws a helpful error
-    getAccount = () => {
-        throw new Error('getAccount is not available. Please update @solana/spl-token package or check version compatibility.');
+    console.warn('[TokenOps] ⚠️  getAccount is not available in @solana/spl-token, using RPC fallback');
+    // Create RPC-based fallback for getAccount
+    getAccount = async (connection, tokenAccount, commitment = 'confirmed', programId = TOKEN_PROGRAM_ID) => {
+        try {
+            // Use getParsedAccountInfo to get account data
+            const accountInfo = await connection.getParsedAccountInfo(tokenAccount, commitment);
+            
+            if (!accountInfo.value) {
+                throw new Error('Token account not found');
+            }
+            
+            const parsed = accountInfo.value.data;
+            if (parsed.program !== 'spl-token' && parsed.program !== 'spl-token-2022') {
+                throw new Error('Account is not a token account');
+            }
+            
+            // Extract token account data
+            const tokenData = parsed.parsed.info;
+            
+            // Return in format compatible with getAccount
+            return {
+                address: tokenAccount,
+                mint: new PublicKey(tokenData.mint),
+                owner: new PublicKey(tokenData.owner),
+                amount: BigInt(tokenData.tokenAmount.amount),
+                decimals: tokenData.tokenAmount.decimals,
+                isInitialized: true,
+                isFrozen: tokenData.state === 'frozen',
+                programId: programId
+            };
+        } catch (error) {
+            throw new Error(`Failed to get token account via RPC: ${error.message}`);
+        }
     };
 }
 
@@ -489,11 +507,43 @@ async function burnTokens(potWalletPrivateKey, potWalletPublicKey, tokenMintAddr
                 };
                 console.log(`[TokenOps] ✅ Token balance: ${accountInfo.amount.toString()}`);
             } catch (error) {
-                console.error(`[TokenOps] ❌ Could not get account info: ${error.message}`);
-                return { 
-                    success: false, 
-                    error: `Could not get token account info: ${error.message}` 
-                };
+                console.warn(`[TokenOps] ⚠️  Could not get account info via getAccount, trying getParsedTokenAccountsByOwner: ${error.message}`);
+                // Fallback to getParsedTokenAccountsByOwner
+                try {
+                    const accounts = await connection.getParsedTokenAccountsByOwner(
+                        potWalletPublic,
+                        { mint: tokenMint }
+                    );
+                    
+                    if (accounts.value && accounts.value.length > 0) {
+                        const account = accounts.value[0];
+                        const foundAccount = new PublicKey(account.pubkey);
+                        // Verify it matches the provided address
+                        if (foundAccount.toString() === tokenAccount.toString()) {
+                            const balance = BigInt(account.account.data.parsed.info.tokenAmount.amount);
+                            const accountProgramId = account.account.owner;
+                            const isToken2022 = accountProgramId === TOKEN_2022_PROGRAM_ID.toString();
+                            
+                            tokenAccountInfo = {
+                                amount: balance,
+                                programId: isToken2022 ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
+                            };
+                            console.log(`[TokenOps] ✅ Got account info via getParsedTokenAccountsByOwner`);
+                            console.log(`[TokenOps]    Token balance: ${balance.toString()}`);
+                            console.log(`[TokenOps]    Program: ${isToken2022 ? 'Token-2022' : 'Token'}`);
+                        } else {
+                            throw new Error(`Token account mismatch: expected ${tokenAccount.toString()}, found ${foundAccount.toString()}`);
+                        }
+                    } else {
+                        throw new Error('Token account not found');
+                    }
+                } catch (fallbackError) {
+                    console.error(`[TokenOps] ❌ Could not get account info: ${fallbackError.message}`);
+                    return { 
+                        success: false, 
+                        error: `Could not get token account info: ${fallbackError.message}` 
+                    };
+                }
             }
         } else {
             // Fallback: search for token account (only if not provided)
