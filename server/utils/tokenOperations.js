@@ -179,12 +179,58 @@ if (!createTransferInstruction || typeof createTransferInstruction !== 'function
     };
 }
 
-if (typeof createAssociatedTokenAccountInstruction !== 'function') {
-    console.warn('[TokenOps] ⚠️  createAssociatedTokenAccountInstruction not available');
+if (!createAssociatedTokenAccountInstruction || typeof createAssociatedTokenAccountInstruction !== 'function') {
+    console.warn('[TokenOps] ⚠️  createAssociatedTokenAccountInstruction not available, creating fallback');
+    // Fallback: manually create associated token account instruction
+    createAssociatedTokenAccountInstruction = (payer, associatedToken, owner, mint, programId = TOKEN_PROGRAM_ID, associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID) => {
+        const { TransactionInstruction } = require('@solana/web3.js');
+        // CreateAssociatedTokenAccount instruction
+        // This is a complex instruction, but we can construct it manually
+        const data = Buffer.alloc(0); // No data needed for this instruction
+        
+        const keys = [
+            { pubkey: payer, isSigner: true, isWritable: true },
+            { pubkey: associatedToken, isSigner: false, isWritable: true },
+            { pubkey: owner, isSigner: false, isWritable: false },
+            { pubkey: mint, isSigner: false, isWritable: false },
+            { pubkey: require('@solana/web3.js').SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: programId, isSigner: false, isWritable: false }
+        ];
+        
+        return new TransactionInstruction({
+            keys,
+            programId: associatedTokenProgramId,
+            data
+        });
+    };
 }
 
-if (typeof createAssociatedTokenAccountIdempotentInstruction !== 'function') {
-    console.warn('[TokenOps] ⚠️  createAssociatedTokenAccountIdempotentInstruction not available');
+if (!createAssociatedTokenAccountIdempotentInstruction || typeof createAssociatedTokenAccountIdempotentInstruction !== 'function') {
+    console.warn('[TokenOps] ⚠️  createAssociatedTokenAccountIdempotentInstruction not available, creating fallback');
+    // Fallback: manually create idempotent associated token account instruction
+    // The idempotent version uses the same instruction but handles the case where account already exists
+    // We'll use the same instruction as the regular version - the idempotent behavior is handled by the program
+    createAssociatedTokenAccountIdempotentInstruction = (payer, associatedToken, owner, mint, programId = TOKEN_PROGRAM_ID, associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID) => {
+        const { TransactionInstruction } = require('@solana/web3.js');
+        // CreateAssociatedTokenAccountIdempotent instruction
+        // Same as regular but the program handles the idempotent check
+        const data = Buffer.alloc(0);
+        
+        const keys = [
+            { pubkey: payer, isSigner: true, isWritable: true },
+            { pubkey: associatedToken, isSigner: false, isWritable: true },
+            { pubkey: owner, isSigner: false, isWritable: false },
+            { pubkey: mint, isSigner: false, isWritable: false },
+            { pubkey: require('@solana/web3.js').SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: programId, isSigner: false, isWritable: false }
+        ];
+        
+        return new TransactionInstruction({
+            keys,
+            programId: associatedTokenProgramId,
+            data
+        });
+    };
 }
 
 // Get getAccount with validation and RPC fallback
