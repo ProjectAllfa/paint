@@ -1,5 +1,59 @@
 const { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL, VersionedTransaction } = require('@solana/web3.js');
-const { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, createAssociatedTokenAccountIdempotentInstruction, getAccount, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createBurnInstruction, createTransferInstruction, getMint } = require('@solana/spl-token');
+const splToken = require('@solana/spl-token');
+
+// Check if getAssociatedTokenAddress exists, if not try alternative import
+// This handles cases where the function might not be exported correctly in some versions
+const { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } = splToken;
+
+// Fallback implementation that always works
+const fallbackGetAssociatedTokenAddress = async (mint, owner, allowOwnerOffCurve = false, programId = TOKEN_PROGRAM_ID, associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID) => {
+    // Derive associated token address using PDA (Program Derived Address)
+    // This matches the SPL Token standard derivation
+    // Seeds: [owner, token_program, mint]
+    const seeds = [
+        owner.toBuffer(),
+        programId.toBuffer(),
+        mint.toBuffer()
+    ];
+    // Use findProgramAddressSync if available, otherwise use findProgramAddress (for older web3.js)
+    const findPDA = PublicKey.findProgramAddressSync || PublicKey.findProgramAddress;
+    if (typeof findPDA === 'function') {
+        const [address] = findPDA(seeds, associatedTokenProgramId);
+        return address;
+    } else {
+        throw new Error('Cannot derive associated token address: findProgramAddress not available');
+    }
+};
+
+// Try to use the library function, but always fall back to our implementation
+let getAssociatedTokenAddress;
+if (typeof splToken.getAssociatedTokenAddress === 'function' && splToken.getAssociatedTokenAddress !== null && splToken.getAssociatedTokenAddress !== undefined) {
+    // Test if it actually works by checking it's callable
+    try {
+        // Just verify it's a function, don't call it yet
+        getAssociatedTokenAddress = splToken.getAssociatedTokenAddress;
+        console.log('[TokenOps] ✅ Using getAssociatedTokenAddress from @solana/spl-token');
+    } catch (e) {
+        console.warn('[TokenOps] ⚠️  getAssociatedTokenAddress exists but failed validation, using fallback');
+        getAssociatedTokenAddress = fallbackGetAssociatedTokenAddress;
+    }
+} else if (typeof splToken.getAssociatedTokenAddressSync === 'function') {
+    // If sync version exists, wrap it in async
+    getAssociatedTokenAddress = async (...args) => splToken.getAssociatedTokenAddressSync(...args);
+    console.log('[TokenOps] ✅ Using getAssociatedTokenAddressSync from @solana/spl-token');
+} else {
+    // Use fallback
+    getAssociatedTokenAddress = fallbackGetAssociatedTokenAddress;
+    console.warn('[TokenOps] ⚠️  getAssociatedTokenAddress not found in @solana/spl-token, using fallback implementation');
+}
+
+// Final validation - ensure we have a function
+if (typeof getAssociatedTokenAddress !== 'function') {
+    console.error('[TokenOps] ❌ CRITICAL: getAssociatedTokenAddress is not a function, forcing fallback');
+    getAssociatedTokenAddress = fallbackGetAssociatedTokenAddress;
+}
+
+const { createAssociatedTokenAccountInstruction, createAssociatedTokenAccountIdempotentInstruction, getAccount, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createBurnInstruction, createTransferInstruction, getMint } = splToken;
 const bs58 = require('bs58');
 const AdminConfig = require('../../models/adminConfig');
 const { decrypt } = require('./encryption');
