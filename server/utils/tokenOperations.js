@@ -53,7 +53,7 @@ if (typeof getAssociatedTokenAddress !== 'function') {
     getAssociatedTokenAddress = fallbackGetAssociatedTokenAddress;
 }
 
-const { createAssociatedTokenAccountInstruction, createAssociatedTokenAccountIdempotentInstruction, getAccount, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, createBurnInstruction, createTransferInstruction, getMint } = splToken;
+const { createAssociatedTokenAccountInstruction, createAssociatedTokenAccountIdempotentInstruction, getAccount, TOKEN_2022_PROGRAM_ID, createBurnInstruction, createTransferInstruction, getMint } = splToken;
 const bs58 = require('bs58');
 const AdminConfig = require('../../models/adminConfig');
 const { decrypt } = require('./encryption');
