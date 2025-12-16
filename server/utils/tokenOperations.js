@@ -89,7 +89,58 @@ if (typeof getAssociatedTokenAddress !== 'function') {
     getAssociatedTokenAddress = fallbackGetAssociatedTokenAddress;
 }
 
-const { createAssociatedTokenAccountInstruction, createAssociatedTokenAccountIdempotentInstruction, getAccount, TOKEN_2022_PROGRAM_ID, createBurnInstruction, createTransferInstruction, getMint } = splToken;
+// Import functions and constants from spl-token with validation
+const { 
+    createAssociatedTokenAccountInstruction, 
+    createAssociatedTokenAccountIdempotentInstruction, 
+    createBurnInstruction, 
+    createTransferInstruction, 
+    getMint 
+} = splToken;
+
+// Get getAccount with validation
+let getAccount;
+if (typeof splToken.getAccount === 'function') {
+    getAccount = splToken.getAccount;
+} else {
+    console.error('[TokenOps] ❌ getAccount is not available in @solana/spl-token');
+    console.error('[TokenOps]    Available exports:', Object.keys(splToken).filter(k => typeof splToken[k] === 'function').slice(0, 10));
+    // Create a fallback that throws a helpful error
+    getAccount = () => {
+        throw new Error('getAccount is not available. Please update @solana/spl-token package or check version compatibility.');
+    };
+}
+
+// Get TOKEN_2022_PROGRAM_ID with validation
+let TOKEN_2022_PROGRAM_ID = splToken.TOKEN_2022_PROGRAM_ID;
+if (!TOKEN_2022_PROGRAM_ID) {
+    console.warn('[TokenOps] ⚠️  TOKEN_2022_PROGRAM_ID is undefined, creating fallback');
+    // Token-2022 Program ID (official)
+    TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+}
+
+// Validate TOKEN_PROGRAM_ID
+if (!TOKEN_PROGRAM_ID) {
+    console.error('[TokenOps] ❌ TOKEN_PROGRAM_ID is undefined');
+    throw new Error('TOKEN_PROGRAM_ID is required but not available from @solana/spl-token');
+}
+
+// Helper function to safely compare PublicKeys
+function safePublicKeyEquals(key1, key2) {
+    if (!key1 || !key2) return false;
+    if (typeof key1.equals === 'function') {
+        return key1.equals(key2);
+    }
+    // Fallback to string comparison
+    return key1.toString() === key2.toString();
+}
+
+// Helper function to safely get program name
+function getProgramName(tokenProgramId) {
+    if (!tokenProgramId || !TOKEN_2022_PROGRAM_ID) return 'Token';
+    return safePublicKeyEquals(tokenProgramId, TOKEN_2022_PROGRAM_ID) ? 'Token-2022' : 'Token';
+}
+
 const bs58 = require('bs58');
 const AdminConfig = require('../../models/adminConfig');
 const { decrypt } = require('./encryption');
@@ -107,7 +158,8 @@ async function getTokenDecimals(connection, tokenMint, tokenProgramId = TOKEN_PR
         return mintInfo.decimals;
     } catch (error) {
         // If failed with one program, try the other
-        const otherProgram = tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID;
+        const otherProgram = safePublicKeyEquals(tokenProgramId, TOKEN_2022_PROGRAM_ID) ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID;
+        
         try {
             const mintInfo = await getMint(connection, tokenMint, 'confirmed', otherProgram);
             return mintInfo.decimals;
@@ -569,7 +621,7 @@ async function burnTokens(potWalletPrivateKey, potWalletPublicKey, tokenMintAddr
         // Use the program ID we detected from getParsedTokenAccountsByOwner
         if (tokenAccountInfo.programId) {
             tokenProgramId = tokenAccountInfo.programId;
-            console.log(`[TokenOps] 🔍 Using ${tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? 'Token-2022' : 'Token'} program (detected from account)`);
+            console.log(`[TokenOps] 🔍 Using ${getProgramName(tokenProgramId)} program (detected from account)`);
         } else {
             // Fallback: try Token-2022 first (pump.fun default), then Token
             console.log('[TokenOps] 🔍 Program ID not detected, trying Token-2022 first...');
@@ -583,19 +635,19 @@ async function burnTokens(potWalletPrivateKey, potWalletPublicKey, tokenMintAddr
         
         try {
             accountInfo = await getAccount(connection, tokenAccount, 'confirmed', tokenProgramId);
-            console.log(`[TokenOps] ✅ Token account verified with ${tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? 'Token-2022' : 'Token'} program`);
+            console.log(`[TokenOps] ✅ Token account verified with ${getProgramName(tokenProgramId)} program`);
             console.log(`[TokenOps]    Account owner: ${accountInfo.owner.toString()}`);
             console.log(`[TokenOps]    Account mint: ${accountInfo.mint.toString()}`);
             console.log(`[TokenOps]    Account amount: ${accountInfo.amount.toString()}`);
         } catch (error) {
             // If getAccount fails, try the other program
-            console.log(`[TokenOps] ⚠️  Failed with ${tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? 'Token-2022' : 'Token'} program: ${error.message}`);
+            console.log(`[TokenOps] ⚠️  Failed with ${getProgramName(tokenProgramId)} program: ${error.message}`);
             
-            const otherProgram = tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID;
+            const otherProgram = safePublicKeyEquals(tokenProgramId, TOKEN_2022_PROGRAM_ID) ? TOKEN_PROGRAM_ID : TOKEN_2022_PROGRAM_ID;
             try {
                 accountInfo = await getAccount(connection, tokenAccount, 'confirmed', otherProgram);
                 tokenProgramId = otherProgram;
-                console.log(`[TokenOps] ✅ Token account verified with ${tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? 'Token-2022' : 'Token'} program`);
+                console.log(`[TokenOps] ✅ Token account verified with ${getProgramName(tokenProgramId)} program`);
                 console.log(`[TokenOps]    Account owner: ${accountInfo.owner.toString()}`);
                 console.log(`[TokenOps]    Account mint: ${accountInfo.mint.toString()}`);
                 console.log(`[TokenOps]    Account amount: ${accountInfo.amount.toString()}`);
@@ -640,7 +692,7 @@ async function burnTokens(potWalletPrivateKey, potWalletPublicKey, tokenMintAddr
         console.log('[TokenOps] 🔥 Creating burn instruction...');
         console.log(`[TokenOps]    Token account: ${tokenAccount.toString()}`);
         console.log(`[TokenOps]    Token mint: ${tokenMint.toString()}`);
-        console.log(`[TokenOps]    Token program: ${tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? 'Token-2022' : 'Token'}`);
+        console.log(`[TokenOps]    Token program: ${getProgramName(tokenProgramId)}`);
         console.log(`[TokenOps]    Account owner: ${accountInfo.owner.toString()}`);
         console.log(`[TokenOps]    Pot wallet: ${potWalletPublic.toString()}`);
         console.log(`[TokenOps]    Amount: ${burnAmount.toString()}`);
